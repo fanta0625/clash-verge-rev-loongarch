@@ -1,8 +1,11 @@
 allowBuilds:
-  "@parcel/watcher": true
+  '@parcel/watcher': true
   core-js: true
   es5-ext: true
+  esbuild: true
   meta-json-schema: true
   unrs-resolver: true
 minimumReleaseAgeExclude:
-  - dayjs@1.11.21
+- dayjs@1.11.21
+overrides:
+  esbuild: 0.21.5
