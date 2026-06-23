@@ -51,23 +51,67 @@ pnpm install
 - `vite-plugin-svgr`: 5.2.0 → 4.3.0
 - 新增 `esbuild` 0.21.5 override（0.21.3 在 loong64 上会崩溃）
 
-### 4. 下载 sidecar 资源
+### 4. 创建 sidecar 占位文件
+
+Prebuild 脚本会尝试从 GitHub 下载 mihomo 核心的 loong64 预编译二进制，
+但 Alpha 版本不存在该架构的发布包（HTTP 404）。需要先创建占位文件让 prebuild
+通过 sidecar 检查，正常下载 geo 数据文件：
 
 ```bash
+mkdir -p src-tauri/sidecar
+cd src-tauri/sidecar
+for name in verge-mihomo verge-mihomo-alpha \
+            clash-verge-service clash-verge-service-install \
+            clash-verge-service-uninstall; do
+    touch "${name}-loongarch64-unknown-linux-gnu"
+    chmod 755 "${name}-loongarch64-unknown-linux-gnu"
+done
+```
+
+然后运行 prebuild 下载数据文件：
+
+```bash
+cd ../..
 node scripts/prebuild.mjs
 ```
 
-> **注意**: mihomo 核心和 clash-verge-service 目前没有 loong64 预编译二进制。
-> prebuild 脚本会自动下载数据文件（Country.mmdb, geosite.dat, geoip.dat），
-> 但 sidecar 二进制需要手动准备或从源码编译。
+### 5. 获取 mihomo 核心二进制
 
-### 5. 编译前端
+Debian 包仓库地址：https://github.com/MetaCubeX/mihomo/releases
+
+下载稳定版 deb 包（例如 `mihomo-linux-loong64-abi2-v1.19.27.deb`），
+从中提取 mihomo 二进制替换占位文件：
+
+```bash
+# 解压 deb
+mkdir -p /tmp/mihomo-extract
+dpkg -x mihomo-linux-loong64-abi2-*.deb /tmp/mihomo-extract/
+
+# 替换两个位置中的 sidecar 占位文件
+cp /tmp/mihomo-extract/usr/bin/mihomo \
+   src-tauri/sidecar/verge-mihomo-loongarch64-unknown-linux-gnu
+cp /tmp/mihomo-extract/usr/bin/mihomo \
+   target/release/verge-mihomo
+
+# 清理
+rm -rf /tmp/mihomo-extract
+```
+
+> **备选方案**：若发布页无 loong64 deb 包，可从源码编译：
+> ```bash
+> git clone https://github.com/MetaCubeX/mihomo.git
+> cd mihomo && git checkout Alpha
+> make linux-loong64
+> # 二进制位于 bin/mihomo-linux-loong64
+> ```
+
+### 6. 编译前端
 
 ```bash
 NODE_OPTIONS='--max-old-space-size=8192' pnpm run web:build
 ```
 
-### 6. 编译 Rust 后端
+### 7. 编译 Rust 后端
 
 由于 @tauri-apps/cli 没有 loong64 native binding，直接使用 cargo 编译：
 
@@ -77,6 +121,15 @@ cargo build --release
 ```
 
 编译产物位于 `target/release/clash-verge`。
+
+> **重要**：首次编译时 sidecar 仍为占位文件。完成步骤 5 后需要**重新执行一次
+> `cargo build --release`**，将真正的 mihomo 二进制嵌入到最终包中。
+
+### 8. 运行
+
+```bash
+target/release/clash-verge
+```
 
 ## 已知问题
 
@@ -92,8 +145,11 @@ cargo build --release
 
 ### 2. mihomo 核心
 
-mihomo (clash meta) 核心目前没有 loong64 预编译二进制。需要从源码编译：
+mihomo 核心可以从 MetaCubeX 的 release 页面获取 loong64 的 deb 包
+（如 `mihomo-linux-loong64-abi2-v1.19.27.deb`），详见步骤 5。
+若当前版本未发布 loong64 包，可从源码编译：
 <https://github.com/MetaCubeX/mihomo>
+> 注意：需要切换到 `Alpha` 分支，`main` 分支不是代理项目代码。
 
 ### 3. clash-verge-service
 
